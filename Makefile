@@ -1,6 +1,31 @@
 NASM    := nasm
-LD      := ld
-OBJCOPY := objcopy
+
+# This project links raw ELF64 output with GNU binutils (ld, objcopy). On Linux
+# the system `ld`/`objcopy` already are GNU binutils. On macOS, /usr/bin/ld is
+# Apple's linker (Mach-O only, rejects --gc-sections/-z noexecstack/-z
+# noseparate-code) and objcopy doesn't exist at all, so auto-detect a GNU cross
+# toolchain there instead (`brew install x86_64-elf-binutils`).
+# NOTE: LD/OBJCOPY have built-in "default" values inside GNU Make itself (ld,
+# objcopy), so `?=` is a no-op here -- Make already considers them "set". Use
+# plain `:=`; a command-line `make LD=... OBJCOPY=...` still overrides this
+# unconditionally regardless of `:=` vs `?=`.
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  ifeq (,$(shell command -v x86_64-elf-ld 2>/dev/null))
+    $(warning macOS detected but x86_64-elf-ld not found. Run: brew install x86_64-elf-binutils (falling back to system ld, which cannot link ELF64))
+    LD := ld
+  else
+    LD := x86_64-elf-ld
+  endif
+  ifeq (,$(shell command -v x86_64-elf-objcopy 2>/dev/null))
+    OBJCOPY := objcopy
+  else
+    OBJCOPY := x86_64-elf-objcopy
+  endif
+else
+  LD      := ld
+  OBJCOPY := objcopy
+endif
 
 LDFLAGS := --gc-sections -s -z noexecstack -z noseparate-code
 BUILD   := build
